@@ -65,7 +65,6 @@ int main() {
             // Edge label can be accessed as graph.edges[j+1]
         }
     }
-    //testing
     
     return 0;
 }
