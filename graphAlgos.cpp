@@ -6,10 +6,10 @@
 #include <algorithm>
 #include <sstream> // Include the <sstream> header
 
-
 struct CSRGraph {
     int numNodes;
     int numEdges;
+    std::string format;
     std::vector<int> rp;
     std::vector<int> ci;
     std::vector<int> ai;
@@ -72,8 +72,10 @@ CSRGraph readDIMACS(const std::string& filename) {
         }
     }
     std::string token;
+    std::string format;
+
     std::istringstream iss(line);
-    iss >> token >> token >> numNodes >> numEdges;
+    iss >> token >> format >> numNodes >> numEdges;
 
     //populate COO
     std::vector<Edge> COO;
@@ -103,21 +105,28 @@ CSRGraph readDIMACS(const std::string& filename) {
         }
     }
 
-    printCOO(COO);
-
     //convert COO to CSR
     CSRGraph graph;
     graph.numNodes = numNodes;
     graph.numEdges = COO.size();
+    graph.format = format;
     graph.rp.push_back(0);
     graph.ci.push_back(0);
     graph.ai.push_back(0);
-
+    int cur = 0;
     for(int i = 0; i < COO.size(); i++){
+        while(COO[i].s > cur) {
+            cur++;
+            graph.rp.push_back(graph.ci.size());
+        }
         graph.ci.push_back(COO[i].d);
         graph.ai.push_back(COO[i].w);
     }
-    
+    while(cur <= graph.numNodes) {
+        graph.rp.push_back(graph.ci.size());
+        cur++;
+    }
+
     printCSRG(graph);
 
     return graph;
@@ -125,18 +134,16 @@ CSRGraph readDIMACS(const std::string& filename) {
 
 // Function to write a graph in CSR representation to a file in DIMACS format
 void writeDIMACS(const std::string& filename, const CSRGraph& graph) {
-    /*
     std::ofstream file(filename);
-    file << "p sp " << graph.offsets.size() - 1 << " " << graph.edge_labels.size() << "\n";
-
-    for (int u = 1; u < graph.offsets.size(); u++) {
-        for (int i = graph.offsets[u - 1]; i < graph.offsets[u]; i++) {
-            int v = graph.edges[i * 2];
-            int label = graph.edge_labels[i];
-            file << "a " << u << " " << v << " " << label << "\n";
+    file << "p " << graph.format << " " << graph.numNodes << " " << graph.numEdges << "\n";
+    int cur = 1;
+    for(int i = 2; i < graph.rp.size(); i++) {
+        int index = graph.rp[i];
+        for(int j = cur; j < index; j++) {
+            file << "a " << i - 1<< " " << graph.ci[j] << " " << graph.ai[j] << "\n";
         }
+        cur = index;
     }
-    */
 }
 
 int main() {
@@ -147,7 +154,7 @@ int main() {
     CSRGraph graph = readDIMACS(inputFilename);
 
 
-    //writeDIMACS(outputFilename, graph);
+    writeDIMACS(outputFilename, graph);
 
     return 0;
 }
