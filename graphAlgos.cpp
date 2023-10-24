@@ -1,70 +1,80 @@
 #include <iostream>
 #include <fstream>
 #include <vector>
+#include <unordered_map>
+#include <limits>
 
-struct CSRGraph {
-    std::vector<int> vertices;
+struct Graph {
     std::vector<int> edges;
+    std::vector<int> edge_labels;
+    std::vector<int> offsets;
 };
 
-CSRGraph readDIMACSGraph(const std::string& filename) {
+// Function to read a graph in DIMACS format from a file and construct CSR representation
+Graph readDIMACS(const std::string& filename) {
+    Graph graph;
     std::ifstream file(filename);
-    CSRGraph graph;
+    std::string line;
+    int numNodes, numEdges;
 
-    if (!file.is_open()) {
-        std::cerr << "Error: Unable to open the file: " << filename << std::endl;
-        return graph;
-    }
+    std::unordered_map<std::pair<int, int>, int> edgeWeights;
 
-    int numVertices, numEdges;
-    char line[256];
+    while (std::getline(file, line)) {
+        if (line.empty()) {
+            continue;
+        }
 
-    while (file.getline(line, sizeof(line))) {
         if (line[0] == 'c') {
-            // Comment line, ignore it
+            continue; // Ignore comments
         } else if (line[0] == 'p') {
-            // Problem line, extract number of vertices and edges
-            sscanf(line, "p edge %d %d", &numVertices, &numEdges);
-            graph.vertices.resize(numVertices + 1);
-            graph.edges.reserve(numEdges * 2); // Assuming an undirected graph, so double the edges
-        } else if (line[0] == 'e') {
-            // Edge line, extract edge information
-            int source, target;
-            sscanf(line, "e %d %d", &source, &target);
-            graph.edges.push_back(source);
-            graph.edges.push_back(target);
+            sscanf(line.c_str(), "p %*s %d %d", &numNodes, &numEdges);
+            graph.edges.resize(numEdges * 2);
+            graph.edge_labels.resize(numEdges);
+            graph.offsets.resize(numNodes + 1, 0);
+        } else if (line[0] == 'a') {
+            int u, v, label, weight;
+            sscanf(line.c_str(), "a %d %d %d %d", &u, &v, &label, &weight);
+            
+            // Keep the edge with the largest weight
+            std::pair<int, int> edge = std::make_pair(u, v);
+            if (edgeWeights.find(edge) == edgeWeights.end() || weight > edgeWeights[edge]) {
+                graph.edges[graph.offsets[u] * 2] = v;
+                graph.edge_labels[graph.offsets[u]] = label;
+                edgeWeights[edge] = weight;
+                graph.offsets[u]++;
+            }
         }
     }
 
-    file.close();
-
-    // Build CSR representation
-    int currentEdge = 0;
-    for (int i = 0; i < numVertices; ++i) {
-        graph.vertices[i] = currentEdge;
-        while (graph.edges[currentEdge] == i + 1) {
-            ++currentEdge;
-        }
+    // Update offsets to represent prefix sum
+    for (int i = 1; i <= numNodes; i++) {
+        graph.offsets[i] += graph.offsets[i - 1];
     }
-    graph.vertices[numVertices] = currentEdge;
 
     return graph;
 }
 
-int main() {
-    const std::string filename = "your_dimacs_file.txt";
-    CSRGraph graph = readDIMACSGraph(filename);
+// Function to write a graph in CSR representation to a file in DIMACS format
+void writeDIMACS(const std::string& filename, const Graph& graph) {
+    std::ofstream file(filename);
+    file << "p sp " << graph.offsets.size() - 1 << " " << graph.edge_labels.size() << "\n";
 
-    // Example: Accessing the CSR data
-    for (int i = 0; i < graph.vertices.size() - 1; ++i) {
-        int start = graph.vertices[i];
-        int end = graph.vertices[i + 1];
-        for (int j = start; j < end; ++j) {
-            int targetVertex = graph.edges[j];
-            // Process the edge between vertex i and targetVertex
-            // Edge label can be accessed as graph.edges[j+1]
+    for (int u = 1; u < graph.offsets.size(); u++) {
+        for (int i = graph.offsets[u - 1]; i < graph.offsets[u]; i++) {
+            int v = graph.edges[i * 2];
+            int label = graph.edge_labels[i];
+            file << "a " << u << " " << v << " " << label << "\n";
         }
     }
-    
+}
+
+int main() {
+    // Replace with your input and output filenames
+    std::string inputFilename = "input.dimacs";
+    std::string outputFilename = "output.dimacs";
+
+    Graph graph = readDIMACS(inputFilename);
+    writeDIMACS(outputFilename, graph);
+
     return 0;
 }
