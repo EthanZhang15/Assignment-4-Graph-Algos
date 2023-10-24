@@ -2,7 +2,16 @@
 #include <fstream>
 #include <vector>
 #include <unordered_map>
-#include <limits>
+#include <functional>  // for std::hash
+
+struct PairHash {
+    template <class T1, class T2>
+    std::size_t operator () (const std::pair<T1, T2>& p) const {
+        auto h1 = std::hash<T1>{}(p.first);
+        auto h2 = std::hash<T2>{}(p.second);
+        return h1 ^ h2;
+    }
+};
 
 struct Graph {
     std::vector<int> edges;
@@ -17,9 +26,12 @@ Graph readDIMACS(const std::string& filename) {
     std::string line;
     int numNodes, numEdges;
 
-    std::unordered_map<std::pair<int, int>, int> edgeWeights;
+    std::unordered_map<std::pair<int, int>, int, PairHash> edgeWeights;
 
     while (std::getline(file, line)) {
+
+        std::cout << line << std::endl;
+
         if (line.empty()) {
             continue;
         }
@@ -70,10 +82,11 @@ void writeDIMACS(const std::string& filename, const Graph& graph) {
 
 int main() {
     // Replace with your input and output filenames
-    std::string inputFilename = "input.dimacs";
+    std::string inputFilename = "wiki.dimacs";
     std::string outputFilename = "output.dimacs";
 
     Graph graph = readDIMACS(inputFilename);
+
     writeDIMACS(outputFilename, graph);
 
     return 0;
