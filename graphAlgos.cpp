@@ -2,72 +2,130 @@
 #include <fstream>
 #include <vector>
 #include <unordered_map>
-#include <functional>  // for std::hash
+#include <functional>
+#include <algorithm>
+#include <sstream> // Include the <sstream> header
 
-struct PairHash {
-    template <class T1, class T2>
-    std::size_t operator () (const std::pair<T1, T2>& p) const {
-        auto h1 = std::hash<T1>{}(p.first);
-        auto h2 = std::hash<T2>{}(p.second);
-        return h1 ^ h2;
+
+struct CSRGraph {
+    int numNodes;
+    int numEdges;
+    std::vector<int> rp;
+    std::vector<int> ci;
+    std::vector<int> ai;
+};
+
+struct Edge {
+    int s;
+    int d;
+    int w;
+};
+
+bool compareEdges(const Edge& edge1, const Edge& edge2) {
+    if (edge1.s != edge2.s) {
+        return edge1.s < edge2.s;
+    } else if (edge1.d != edge2.d) {
+        return edge1.d < edge2.d;
+    } else {
+        return edge1.w < edge2.w;
     }
-};
+}
 
-struct Graph {
-    std::vector<int> edges;
-    std::vector<int> edge_labels;
-    std::vector<int> offsets;
-};
+void printCOO(const std::vector<Edge>& edges) {
+    for (const Edge& edge : edges) {
+        std::cout << "s: " << edge.s << ", d: " << edge.d << ", w: " << edge.w << std::endl;
+    }
+}
 
-// Function to read a graph in DIMACS format from a file and construct CSR representation
-Graph readDIMACS(const std::string& filename) {
-    Graph graph;
+void printCSRG(const CSRGraph& graph) {
+    std::cout << "Number of nodes: " << graph.numNodes << std::endl;
+    std::cout << "Number of edges: " << graph.numEdges << std::endl;
+
+    std::cout << "rp: ";
+    for (int x : graph.rp) {
+        std::cout << x << " ";
+    }
+    std::cout << std::endl;
+    
+    std::cout << "ci: ";
+    for (int x : graph.ci) {
+        std::cout << x << " ";
+    }
+    std::cout << std::endl;
+
+    std::cout << "ai: ";
+    for (int x : graph.ai) {
+        std::cout << x << " ";
+    }
+    std::cout << std::endl;
+}
+
+CSRGraph readDIMACS(const std::string& filename) {
     std::ifstream file(filename);
     std::string line;
     int numNodes, numEdges;
 
-    std::unordered_map<std::pair<int, int>, int, PairHash> edgeWeights;
-
+    //read numNodes and numEdges
     while (std::getline(file, line)) {
-
-        std::cout << line << std::endl;
-
-        if (line.empty()) {
-            continue;
+        if (line[0] == 'p') {
+            break;
         }
+    }
+    std::string token;
+    std::istringstream iss(line);
+    iss >> token >> token >> numNodes >> numEdges;
 
-        if (line[0] == 'c') {
-            continue; // Ignore comments
-        } else if (line[0] == 'p') {
-            sscanf(line.c_str(), "p %*s %d %d", &numNodes, &numEdges);
-            graph.edges.resize(numEdges * 2);
-            graph.edge_labels.resize(numEdges);
-            graph.offsets.resize(numNodes + 1, 0);
-        } else if (line[0] == 'a') {
-            int u, v, label, weight;
-            sscanf(line.c_str(), "a %d %d %d %d", &u, &v, &label, &weight);
-            
-            // Keep the edge with the largest weight
-            std::pair<int, int> edge = std::make_pair(u, v);
-            if (edgeWeights.find(edge) == edgeWeights.end() || weight > edgeWeights[edge]) {
-                graph.edges[graph.offsets[u] * 2] = v;
-                graph.edge_labels[graph.offsets[u]] = label;
-                edgeWeights[edge] = weight;
-                graph.offsets[u]++;
+    //populate COO
+    std::vector<Edge> COO;
+    while (std::getline(file, line)) {
+        if (line[0] == 'a') {
+            int s, d, w;
+            if (sscanf(line.c_str(), "a %d %d %d", &s, &d, &w) == 3) {
+                COO.push_back({s, d, w});
             }
         }
     }
 
-    // Update offsets to represent prefix sum
-    for (int i = 1; i <= numNodes; i++) {
-        graph.offsets[i] += graph.offsets[i - 1];
+    //sort COO by source, destination, then weight
+    std::sort(COO.begin(), COO.end(), compareEdges);
+
+    //only keep biggest weights
+    for (auto it = COO.begin(); it != COO.end(); ) {
+        auto next = std::next(it);
+        if (next != COO.end() && it->s == next->s && it->d == next->d) {
+            if (it->w < next->w) {
+                it = COO.erase(it);
+            } else {
+                COO.erase(next);
+            }
+        } else {
+            ++it;
+        }
     }
+
+    printCOO(COO);
+
+    //convert COO to CSR
+    CSRGraph graph;
+    graph.numNodes = numNodes;
+    graph.numEdges = COO.size();
+    graph.rp.push_back(0);
+    graph.ci.push_back(0);
+    graph.ai.push_back(0);
+
+    for(int i = 0; i < COO.size(); i++){
+        graph.ci.push_back(COO[i].d);
+        graph.ai.push_back(COO[i].w);
+    }
+    
+    printCSRG(graph);
 
     return graph;
 }
 
 // Function to write a graph in CSR representation to a file in DIMACS format
-void writeDIMACS(const std::string& filename, const Graph& graph) {
+void writeDIMACS(const std::string& filename, const CSRGraph& graph) {
+    /*
     std::ofstream file(filename);
     file << "p sp " << graph.offsets.size() - 1 << " " << graph.edge_labels.size() << "\n";
 
@@ -78,6 +136,7 @@ void writeDIMACS(const std::string& filename, const Graph& graph) {
             file << "a " << u << " " << v << " " << label << "\n";
         }
     }
+    */
 }
 
 int main() {
@@ -85,9 +144,10 @@ int main() {
     std::string inputFilename = "wiki.dimacs";
     std::string outputFilename = "output.dimacs";
 
-    Graph graph = readDIMACS(inputFilename);
+    CSRGraph graph = readDIMACS(inputFilename);
 
-    writeDIMACS(outputFilename, graph);
+
+    //writeDIMACS(outputFilename, graph);
 
     return 0;
 }
