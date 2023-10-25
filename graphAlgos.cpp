@@ -234,13 +234,13 @@ void nodeDegreeHistogram(const std::string& filename, CSRGraph& graph) {
 
 int main() {
     // Replace with input and output filenames
-    std::string inputFilename = "test.dimacs";
+    std::string inputFilename = "road-NY.dimacs";
     std::string outputFilename = "test.dimacs";
 
     CSRGraph graph = readDIMACS(inputFilename);
     
     pageRank(graph);
-    //nodeDegreeHistogram("outgoing.txt", graph);
+    nodeDegreeHistogram("road-NYOutgoing.txt", graph);
     //printNodeNumbersLabels("test.txt", graph);
 
     writeDIMACS(outputFilename, graph);
