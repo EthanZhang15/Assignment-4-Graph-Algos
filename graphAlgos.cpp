@@ -213,6 +213,7 @@ void pageRank(CSRGraph& graph) {
     }
 }
 
+//writes a file with the outdegrees of every node
 void nodeDegreeHistogram(const std::string& filename, CSRGraph& graph) {
     std::ofstream file(filename);
     
@@ -232,18 +233,18 @@ void nodeDegreeHistogram(const std::string& filename, CSRGraph& graph) {
 
 }
 
-int main() {
+int main(int argc, char** argv) {
+    std::string name(argv[1]);
     // Replace with input and output filenames
-    std::string inputFilename = "road-NY.dimacs";
-    std::string outputFilename = "test.dimacs";
+    std::string inputFilename = name + ".dimacs";
+    std::string outputDimacsFilename = name + "Output.dimacs";
+    std::string outputNodeLabelFilename = name + "NodeLabel.txt";
 
     CSRGraph graph = readDIMACS(inputFilename);
-    
     pageRank(graph);
-    nodeDegreeHistogram("road-NYOutgoing.txt", graph);
-    //printNodeNumbersLabels("test.txt", graph);
-
-    writeDIMACS(outputFilename, graph);
+    //nodeDegreeHistogram(name + "Outgoing.txt", graph);
+    printNodeNumbersLabels(outputNodeLabelFilename, graph);
+    writeDIMACS(outputDimacsFilename, graph);
 
     return 0;
 }
