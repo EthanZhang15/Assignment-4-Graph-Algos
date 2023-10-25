@@ -1,10 +1,10 @@
 #include <iostream>
 #include <fstream>
 #include <vector>
-#include <unordered_map>
 #include <functional>
 #include <algorithm>
-#include <sstream> // Include the <sstream> header
+#include <sstream>
+#include <math.h>
 
 struct CSRGraph {
     int numNodes;
@@ -13,6 +13,7 @@ struct CSRGraph {
     std::vector<int> rp;
     std::vector<int> ci;
     std::vector<int> ai;
+    std::vector<long double> labels;
 };
 
 struct Edge {
@@ -45,18 +46,14 @@ void printCSRG(const CSRGraph& graph) {
     for (int x : graph.rp) {
         std::cout << x << " ";
     }
-    std::cout << std::endl;
-    
-    std::cout << "ci: ";
+    std::cout << std::endl << "ci: ";
     for (int x : graph.ci) {
         std::cout << x << " ";
     }
-    std::cout << std::endl;
-
-    std::cout << "ai: ";
+    std::cout << std::endl << "ai: ";
     for (int x : graph.ai) {
         std::cout << x << " ";
-    }
+    }   
     std::cout << std::endl;
 }
 
@@ -82,7 +79,7 @@ CSRGraph readDIMACS(const std::string& filename) {
     while (std::getline(file, line)) {
         if (line[0] == 'a') {
             int s, d, w;
-            if (sscanf(line.c_str(), "a %d %d %d", &s, &d, &w) == 3) {
+            if (sscanf(line.c_str(), "a %d %d %d", &s, &d, &w) == 3 && w != 0) {
                 COO.push_back({s, d, w});
             }
         }
@@ -103,7 +100,7 @@ CSRGraph readDIMACS(const std::string& filename) {
         } else {
             ++it;
         }
-    }
+    }    
 
     //convert COO to CSR
     CSRGraph graph;
@@ -127,8 +124,6 @@ CSRGraph readDIMACS(const std::string& filename) {
         cur++;
     }
 
-    printCSRG(graph);
-
     return graph;
 }
 
@@ -146,13 +141,107 @@ void writeDIMACS(const std::string& filename, const CSRGraph& graph) {
     }
 }
 
+// Function to print the number and label of all nodes
+void printNodeNumbersLabels(const std::string& filename, const CSRGraph& graph){
+    std::ofstream file(filename);
+    for(int i = 1; i < graph.numNodes + 1; i++) {
+        file << i << " " << graph.labels[i] << "\n";
+    }
+}
+
+// Function to compute the page rank of a graph in CSR representation
+void pageRank(CSRGraph& graph) {
+    long double ranks[graph.numNodes + 1];
+    const double d = .85;
+    for(int i = 1; i < graph.numNodes + 1; i++) {
+        ranks[i] = (double)1/graph.numNodes;
+    }
+    
+    //count weights
+    long long outWeight[graph.numNodes + 1];
+    for(int i = 1; i < graph.numNodes + 1; i++) {
+        outWeight[i] = 0;
+        for(int j = graph.rp[i]; j < graph.rp[i+1]; j++) {
+            outWeight[i] += graph.ai[j];
+        }
+    }
+
+    //run until precision reached
+    bool finished = false;
+    while(!finished) {
+        float tempRanks[graph.numNodes + 1];
+        for(int i = 0; i < graph.numNodes + 1; i++) {
+            tempRanks[i] = (1-d)/graph.numNodes;
+        }
+
+        int cur = 1;
+        for(int i = 2; i < graph.rp.size(); i++) {
+            int index = graph.rp[i];
+            for(int j = cur; j < index; j++) {
+                if(outWeight[i - 1] == 0){
+                    std::cout << "divide 0 " << i - 1 << " " << graph.ci[j] << std::endl;
+                }
+                tempRanks[graph.ci[j]] += d * ranks[i - 1] * ((double) graph.ai[j] / outWeight[i - 1]);
+                //tempRanks[graph.ci[j]] += d * ranks[i - 1]/(index - cur);
+            }
+            cur = index;
+        }
+        
+        finished = true;
+        for(int i = 1; i < graph.numNodes + 1; i++){
+            if(fabs(tempRanks[i] - ranks[i]) > .0001){
+                finished = false;
+            }
+            ranks[i] = tempRanks[i];
+        }
+    }
+
+
+    //normalize
+    long double sum = 0;
+    for(int i = 1; i < graph.numNodes + 1; i++){
+        sum += ranks[i];
+    }
+    for(int i = 1; i < graph.numNodes + 1; i++) {
+        ranks[i] = ranks[i]/sum;
+    }
+
+    //store ranks
+    graph.labels.push_back(0.0);
+    for(int i = 1; i < graph.numNodes + 1; i++){
+        graph.labels.push_back(ranks[i]);
+    }
+}
+
+void nodeDegreeHistogram(const std::string& filename, CSRGraph& graph) {
+    std::ofstream file(filename);
+    
+    int degrees[graph.numNodes + 1] = {0};
+    int cur = 1;
+    for(int i = 2; i < graph.rp.size(); i++) {
+        int index = graph.rp[i];
+        for(int j = cur; j < index; j++) {
+            degrees[graph.ci[j]]++;
+        }
+        cur = index;
+    }
+    
+    for(int i = 1; i < graph.numNodes + 1; i++) {
+        file << i << " " << degrees[i] << "\n";
+    }
+
+}
+
 int main() {
-    // Replace with your input and output filenames
-    std::string inputFilename = "wiki.dimacs";
-    std::string outputFilename = "output.dimacs";
+    // Replace with input and output filenames
+    std::string inputFilename = "test.dimacs";
+    std::string outputFilename = "test.dimacs";
 
     CSRGraph graph = readDIMACS(inputFilename);
-
+    
+    pageRank(graph);
+    //nodeDegreeHistogram("outgoing.txt", graph);
+    //printNodeNumbersLabels("test.txt", graph);
 
     writeDIMACS(outputFilename, graph);
 
