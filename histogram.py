@@ -3,13 +3,13 @@ import matplotlib.pyplot as plt
 x = []
 y = []
 
-file = open('outgoing.txt', 'r')
+file = open('road-NYOutgoing.txt', 'r')
 lines = file.readlines()
 
 for line in lines:
     splits = line.split()
-    x.append(splits[0])
-    y.append(splits[1])
+    x.append(int(splits[0]))
+    y.append(int(splits[1]))
 
-plt.bar(x, y)
+plt.bar(x, y, bottom=0)
 plt.show()
